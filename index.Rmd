@@ -1,0 +1,256 @@
+---
+title: "FX and Collateral Analyst Daily Morning Report"
+author: "Mandip Mistry"
+date: "21/02/2021"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(riingo)
+library(tidyverse)
+library(tidyquant)
+library(tidytext)
+library(BIS)
+library(zoo)
+library(data.table)
+library(ggplot2)
+library(sentometrics)
+library(timetk)
+
+# Function to get all news
+get_all_news <- function(fx_tags, days_back){
+  PRE_ALLOC_MAX <- 30
+  results <- vector(mode = "list", length = PRE_ALLOC_MAX)
+  i <- 1
+  from <- 0
+  repeat {
+    res <-riingo::riingo_news(tags=fx_tags, start_date=Sys.Date()-days_back,
+                              end_date=Sys.Date(), limit=1000, offset = from)
+    res <- cbind(res, fx_tags)
+    results <- rbind(res, results)
+    if (nrow(res) == 1000) {
+      message("Fetching next 1000 records...")
+      i <- i + 1
+      from <-  from + 1000
+    } else {
+      break
+    }
+  }
+  results
+}
+
+# Get PRICE DATA
+# Most trade currencies last 180 day prices by 
+fx_tickers_traded <- c("eurusd", "usdjpy", "usdchf", "gbpusd")
+start <- Sys.Date() - 365
+fx_prices <- riingo_fx_prices(fx_tickers_traded, start, resample_frequency = "2hour")
+
+####################### GET AND SET NEWS DATA ###########################
+# Get all the news in 
+fx_pair_news <- do.call(rbind, lapply(fx_tickers_traded, get_all_news, 180))
+
+#  Clean up the news df
+clean_up_tiingo_news <- function(news){
+  news %>%
+  select(id, publishedDate, description, fx_tags) %>%
+  rename(date = publishedDate, texts = description) %>%
+  distinct()}
+clean_fx_pair_news <- clean_up_tiingo_news(fx_pair_news)
+
+# Add Features for Tags
+clean_fx_pair_news_feats <- clean_fx_pair_news %>% 
+  mutate(eurusd = case_when(fx_tags == "eurusd" ~ 1, TRUE~ 0),
+         usdjpy = case_when(fx_tags == "usdjpy"~1, TRUE~ 0),
+         usdchf = case_when(fx_tags == "usdchf"~1, TRUE ~0),
+         gbpusd = case_when(fx_tags == "gbpusd"~1, TRUE ~0)) %>% 
+  select(-fx_tags) %>% 
+  distinct(id, .keep_all = TRUE)
+
+# Create a Sento Corpus
+clean_fx_pair_news_sento <- sento_corpus(clean_fx_pair_news_feats)
+
+# Calculate Sentiment
+s <- compute_sentiment(
+  clean_fx_pair_news_sento,
+  sento_lexicons(list_lexicons[c("LM_en")]),
+  how = "counts"
+)
+
+# Proportional to the length of the document
+ctr <- ctr_agg(howDocs = "proportional", howTime = "equal_weight", by = "day", lag = 1)
+measures <- aggregate(s, ctr)
+
+```
+
+### Introduction
+
+This is an R Markdown document. This document is automated and meant to provide meaningful start of day report for and FX and Collateral Analyst. This was created over a couple of hours and is intended to demonstrate my ability to rapidly prototype reports using R and freely available data. 
+
+#### Sentiment Charts
+
+Using a lexicon of positive and negative words identified by Loughran and Macdonald we extract these charged words to create a sentiment score. The sentiment score over time of the FX pairs were derived using the tiingo.com news feed and Loughran Macdonald Lexicon. Tiingo's news feed incorporates financial news sites and financial blogs - including those of small-time reputable bloggers, and tag them using algos they have been developing for over a decade. The idea behind this chart is the Analyst would monitor the feed looking for large anomalies as sign of a large prices movements. 
+
+#### Hourly Price Charts
+
+Using hourly tick data for the FX pairs from IEX the Analyst would monitor these prices at a granularity he/she sees fit. The chart and the associated code is meant as a jumping off point to preform deeper dives, add additional explanatory variable to regress against. 
+
+#### Correlation Chart
+
+Using the daily returns of the FX prices correlation is calculate and plotted. The Analyst would use this graph to monitor the correlation. Some pairs are more obviously correlated however if correlation on those pairs start to move in the opposite direction an oppurtunity could present itself. 
+
+### Correlation Amongst Pairs
+
+The top right are the absolute correlation numbers across the pairs 
+
+Histogram of returns along the diagonals
+
+Bottom left are the scatter plots for each pair
+
+```{r correlation, message=FALSE, echo=FALSE}
+test <- fx_prices %>% 
+  group_by(ticker) %>% 
+tq_transmute(select     = open, 
+                 mutate_fun = periodReturn, 
+                 period     = "daily", 
+                 col_rename = "Ra") %>% 
+  pivot_wider(names_from = ticker, values_from = Ra) %>% 
+  tk_xts( date_var = date)
+
+
+chart.Correlation(test, histogram = TRUE)
+```
+
+
+### USD/CHF
+
+```{r sentiment-usd-chf, echo=FALSE, message=FALSE}
+measures_df <- measures$measures 
+measures_df %>% 
+  select(date, `LM_en--usdchf--dummyTime`) %>% 
+ggplot(aes(x = date, y = `LM_en--usdchf--dummyTime`)) +
+geom_line(color = palette_light()[[1]]) + 
+# scale_y_log10() +
+geom_smooth(method = "lm") +
+labs(title = "USDCHF Sentiment of tagged articles", 
+  subtitle = "Source: Tiingo.com", 
+       y = "Sentiment Score", x = "") + 
+  theme_tq()
+
+```
+
+
+```{r usdchf-pricemvmt, echo=FALSE, message=FALSE}
+fx_prices %>% 
+  filter(ticker == "usdchf", 
+         date > as.Date("2020-12-01")) %>% 
+  ggplot(aes(x = date, y = open)) +
+  geom_line(color = palette_light()[[1]]) + 
+  scale_y_log10() +
+  geom_smooth(method = "lm") +
+  labs(title = "USDCHF", 
+       subtitle = "", 
+       y = "Closing Price", x = "Hourly Price Movements") + 
+  theme_tq()
+
+```
+
+### GBP/USD
+
+```{r sentiment-gbp-usd, echo=FALSE, message=FALSE}
+measures_df %>% 
+  select(date, `LM_en--gbpusd--dummyTime`) %>% 
+ggplot(aes(x = date, y = `LM_en--gbpusd--dummyTime`)) +
+geom_line(color = palette_light()[[1]]) + 
+# scale_y_log10() +
+geom_smooth(method = "lm") +
+labs(title = "GBPUSD Sentiment of tagged articles", 
+  subtitle = "Source: Tiingo.com", 
+       y = "Sentiment Score", x = "") + 
+  theme_tq()
+
+```
+
+
+```{r gbpusd-pricemvmt, echo=FALSE, , message=FALSE}
+fx_prices %>% 
+  filter(ticker == "gbpusd", 
+         date > as.Date("2020-12-01")) %>% 
+  ggplot(aes(x = date, y = open)) +
+  geom_line(color = palette_light()[[1]]) + 
+  scale_y_log10() +
+  geom_smooth(method = "lm") +
+  labs(title = "GBPUSD", 
+       subtitle = "Hourly Price Movements", 
+       y = "Closing Price", x = "") + 
+  theme_tq()
+```
+
+### EUR/USD
+
+
+```{r sentiment-eur-usd, echo=FALSE, message=FALSE}
+measures_df %>% 
+  select(date, `LM_en--eurusd--dummyTime`) %>% 
+ggplot(aes(x = date, y = `LM_en--eurusd--dummyTime`)) +
+geom_line(color = palette_light()[[1]]) + 
+# scale_y_log10() +
+geom_smooth(method = "lm") +
+labs(title = "EURUSD Sentiment of tagged articles", 
+  subtitle = "Source: Tiingo.com", 
+       y = "Sentiment Score", x = "") + 
+  theme_tq()
+
+```
+
+
+```{r eurusd-pricemvmt, echo=FALSE, , message=FALSE}
+fx_prices %>% 
+  filter(ticker == "eurusd", 
+         date > as.Date("2020-12-01")) %>% 
+  ggplot(aes(x = date, y = open)) +
+  geom_line(color = palette_light()[[1]]) + 
+  scale_y_log10() +
+  geom_smooth(method = "lm") +
+  labs(title = "EURUSD", 
+       subtitle = "Hourly Price Movements", 
+       y = "Price", x = "") + 
+  theme_tq()
+
+```
+
+### USD/JPY
+
+
+```{r sentiment-usd-jpy, echo=FALSE, message=FALSE}
+measures_df %>% 
+  select(date, `LM_en--usdjpy--dummyTime`) %>% 
+ggplot(aes(x = date, y = `LM_en--usdjpy--dummyTime`)) +
+geom_line(color = palette_light()[[1]]) + 
+# scale_y_log10() +
+geom_smooth(method = "lm") +
+labs(title = "USDJPY Sentiment of tagged articles", 
+  subtitle = "Source: Tiingo.com", 
+       y = "Sentiment Score", x = "") + 
+  theme_tq()
+
+```
+
+
+```{r usdjpy-pricemvmt, echo=FALSE, , message=FALSE}
+fx_prices %>% 
+  filter(ticker == "usdjpy", 
+         date > as.Date("2020-12-01")) %>% 
+  ggplot(aes(x = date, y = open)) +
+  geom_line(color = palette_light()[[1]]) + 
+  scale_y_log10() +
+  geom_smooth(method = "lm") +
+  labs(title = "usdjpy", 
+       subtitle = "Hourly Price Movements", 
+       y = "Price", x = "") + 
+  theme_tq()
+
+```
