@@ -88,7 +88,7 @@ measures <- aggregate(s, ctr)
 
 ### Introduction
 
-This is an R Markdown document. This document is automated and meant to provide meaningful start of day report for and FX and Collateral Analyst. This was created over a couple of hours and is intended to demonstrate my ability to rapidly prototype reports using R and freely available data. 
+This is an R Markdown document. This document is automated and meant to provide meaningful start of day report for and FX an Collateral Analyst. This was created over a couple of hours and is intended to demonstrate my ability to rapidly prototype reports using R and freely available data. 
 
 #### Sentiment Charts
 
@@ -96,11 +96,11 @@ Using a lexicon of positive and negative words identified by Loughran and Macdon
 
 #### Hourly Price Charts
 
-Using hourly tick data for the FX pairs from IEX the Analyst would monitor these prices at a granularity he/she sees fit. The chart and the associated code is meant as a jumping off point to preform deeper dives, add additional explanatory variable to regress against. 
+Using hourly tick data for the FX pairs from IEX the Analyst would monitor these prices at a granularity he/she sees fit. The chart and the associated code is meant as a jumping off point to preform deeper dives and add additional explanatory variables to regress against. 
 
 #### Correlation Chart
 
-Using the daily returns of the FX prices correlation is calculate and plotted. The Analyst would use this graph to monitor the correlation. Some pairs are more obviously correlated however if correlation on those pairs start to move in the opposite direction an oppurtunity could present itself. 
+Using the daily returns of the FX prices correlation is calculated and plotted. The Analyst would use this graph to monitor the correlation. Some pairs are more obviously correlated and if correlation on those pairs start to move in the opposite direction an opportunity could present itself. 
 
 ### Correlation Amongst Pairs
 
@@ -110,7 +110,7 @@ Histogram of returns along the diagonals
 
 Bottom left are the scatter plots for each pair
 
-```{r correlation, message=FALSE, echo=FALSE}
+```{r correlation,echo=FALSE, message=FALSE}
 test <- fx_prices %>% 
   group_by(ticker) %>% 
 tq_transmute(select     = open, 
@@ -248,7 +248,7 @@ fx_prices %>%
   geom_line(color = palette_light()[[1]]) + 
   scale_y_log10() +
   geom_smooth(method = "lm") +
-  labs(title = "usdjpy", 
+  labs(title = "USDJPY", 
        subtitle = "Hourly Price Movements", 
        y = "Price", x = "") + 
   theme_tq()

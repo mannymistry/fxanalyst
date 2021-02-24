@@ -42,7 +42,7 @@ cash_balances <- read_csv("cashbalances.csv")
 tags <- c("usd", "eur", "jpy", "gbp", "chf")
 
 # Read in News data about each currency over the last 180 days
-news_eurusd <- get_all_news(tags = "eurusd", 365)
+news_eurusd <- get_all_news(tags = c("eurusd", "Euro", "ECB"), 365)
 news_usdjpy <- get_all_news(tags = "usdjpy", 365)
 news_usdchf <- get_all_news(tags = "usdchf", 365)
 news_gbpusd <- get_all_news(tags = "gbpusd", 365)
@@ -52,17 +52,24 @@ generate_fx_tokens <- function(news_df, to_date){
   news_df %>% 
   unnest_tokens(word, description) %>% 
   anti_join(stop_words) %>% 
-  select(publishedDate, id, word) %>%
+  select(publishedDate, id, word, publishedDate) %>%
   filter(publishedDate > to_date) %>%
-  count(word) %>%
+  # count(word) %>%
   inner_join(get_sentiments("loughran"), by = "word") %>%
-  group_by(sentiment)
+  group_by(sentiment, publishedDate) %>% 
+  filter(sentiment %in% c("positive", "negative"))
 }
 
 
 # Create the tokens 30,60,90
 eurusdtokens90 <- generate_fx_tokens(news_eurusd, to_date = Sys.Date()-90) %>% 
   mutate(fx = "eurusd")
+
+eurusdtokens90 %>% 
+  group_by(publishedDate, sentiment) %>%
+  tally()
+  
+
 usdjpytokens90 <- generate_fx_tokens(news_usdjpy, to_date = Sys.Date()-90) %>% 
   mutate(fx = "usdjpy")
 usdchftokens90 <- generate_fx_tokens(news_usdchf, to_date = Sys.Date()-90) %>% 
@@ -209,5 +216,6 @@ fx_prices %>%
        y = "Adjusted Closing Price", x = "") + 
   theme_tq()
 
+library(tidyquant)
 
 
