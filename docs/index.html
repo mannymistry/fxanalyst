@@ -273,18 +273,24 @@ div.tocify {
 
 <div id="introduction" class="section level3">
 <h3>Introduction</h3>
-<p>This is an R Markdown document. This document is automated and meant to provide meaningful start of day report for and FX an Collateral Analyst. This was created over a couple of hours and is intended to demonstrate my ability to rapidly prototype reports using R and freely available data.</p>
+<p>This is an R Markdown document. This document is automated and meant to provide meaningful start of day report for and FX and Collateral Analyst. This was created over a couple of hours and is intended to demonstrate my ability to rapidly prototype reports using R and freely available data.</p>
 <div id="sentiment-charts" class="section level4">
 <h4>Sentiment Charts</h4>
-<p>Using a lexicon of positive and negative words identified by Loughran and Macdonald we extract these charged words to create a sentiment score. The sentiment score over time of the FX pairs were derived using the tiingo.com news feed and Loughran Macdonald Lexicon. Tiingo’s news feed incorporates financial news sites and financial blogs - including those of small-time reputable bloggers, and tag them using algos they have been developing for over a decade. The idea behind this chart is the Analyst would monitor the feed looking for large anomalies as sign of a large prices movements.</p>
+<p>Using a lexicon of positive and negative words identified by Loughran and Macdonald we extract these charged words to create a sentiment score. The sentiment score over time of the FX pairs were derived using the tiingo.com news feed and Loughran Macdonald Lexicon. Tiingo’s news feed incorporates financial news sites and financial blogs - including those of small-time reputable bloggers, and tag them using algos they have been developing for over a decade.</p>
+<p><strong>How might an Analyst use this information?</strong></p>
+<p>A sudden move in news derived sentiment coupled with other market intelligence the analyst would be better prepared for a sudden change in FX prices.</p>
 </div>
 <div id="hourly-price-charts" class="section level4">
 <h4>Hourly Price Charts</h4>
-<p>Using hourly tick data for the FX pairs from IEX the Analyst would monitor these prices at a granularity he/she sees fit. The chart and the associated code is meant as a jumping off point to preform deeper dives and add additional explanatory variables to regress against.</p>
+<p>The plots were created Using hourly tick data for the FX pairs from IEX.</p>
+<p><strong>How might an Analyst use this information?</strong></p>
+<p>The Analyst would monitor these prices at a granularity he/she sees fit. The analyst would use the plot and it code as a jumping off point to perform deeper dives and ad hoc analysis when requested. The analyst can easily add additional time series variable to verify visually if a relationship exists.</p>
 </div>
 <div id="correlation-chart" class="section level4">
 <h4>Correlation Chart</h4>
-<p>Using the daily returns of the FX prices correlation is calculated and plotted. The Analyst would use this graph to monitor the correlation. Some pairs are more obviously correlated and if correlation on those pairs start to move in the opposite direction an opportunity could present itself.</p>
+<p>Using the daily returns of the FX prices correlation is calculated and plotted.</p>
+<p><strong>How might an Analyst use this information?</strong></p>
+<p>The Analyst would use this graph to monitor the correlation on a daily basis. The analyst expects that correlations remain steady between certain pairs however if the analyst notices a signficant change day over day it would be cause to dig deeper for answers.</p>
 </div>
 </div>
 <div id="correlation-amongst-pairs" class="section level3">
