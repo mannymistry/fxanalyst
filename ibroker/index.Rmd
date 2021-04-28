@@ -1,0 +1,226 @@
+---
+title: "Interactive Brokers Availble Short Inventory"
+author: "Mandip Mistry"
+date: "2021-04-27"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+library(curl)
+library(tidyverse)
+library(ggplot2)
+library(riingo)
+library(tidyquant)
+library(gt)
+library(sentometrics)
+options(warn=-1)
+
+# url <-  "ftp://shortstock: @ftp3.interactivebrokers.com"
+# h <-  new_handle(dirlistonly=TRUE)
+# con <-  curl(url, "r", h)
+# tbl <-  read.table(con)
+# close(con)
+
+# Get Canada data
+# cad <- paste0(url, "/",tbl$V1[9])
+# usa <- paste0(url, "/",tbl$V1[43])
+
+
+# Download the file
+# download.file(cad, destfile = "cad.txt", )
+# download.file(usa, destfile = "usa.txt")
+
+
+cad_data <- read.delim("/home/manny/Documents/githubproject/fxanalyst/cad.csv", sep = "|", header = FALSE)
+usa_data <- read.delim("/home/manny/Documents/githubproject/fxanalyst/usa.csv", sep = "|", header = FALSE)
+
+# Clean up the data
+# Dont have CAD Prices
+# USA
+# Extract the date and time give its own columns
+date <- usa_data$V2[1] 
+time_stamp <- usa_data$V3[1] 
+
+# Start Cleaning the Data frame
+clean_cad <- cad_data %>% 
+  slice(-(1:3)) %>% 
+  rename(ticker = V1, 
+         ccy = V2, 
+         name = V3,
+         cusip = V4, 
+         isin = V5, 
+         rebate =V6, 
+         fee = V7, 
+         shares = V8) %>% 
+  select(-V9)
+
+clean_usa <- usa_data %>% 
+  slice(-(1:3)) %>% 
+  rename(ticker = V1, 
+         ccy = V2, 
+         name = V3,
+         cusip = V4, 
+         isin = V5, 
+         rebate =V6, 
+         fee = V7, 
+         shares = V8) %>% 
+  select(-V9) %>% 
+  mutate(across(c("shares", "fee", "rebate"), as.integer), 
+         across(ccy, as.factor))
+
+supported_tickers <- supported_tickers() 
+
+supported <- clean_usa %>% 
+  left_join(supported_tickers, by = c("ticker")) %>% 
+  select(ticker, exchange) %>% 
+  drop_na() %>% 
+  distinct(ticker)
+  
+
+# Get price of each stock 
+# prices_all_stock <- riingo_prices(supported$ticker,start = Sys.Date(), end_date = Sys.Date())
+# prices_all_stock_30days <- riingo_prices(supported$ticker,start = Sys.Date()-20, end_date =Sys.Date(), resample_frequency = "daily")
+
+# twenty_day_returns <- prices_all_stock_30days %>% 
+#   group_by(ticker) %>% 
+#   tq_transmute(select = "adjClose", 
+#                mutate_fun = periodReturn, 
+#                period = "weekly", 
+#                type = "arithmetic")
+
+prices_all_stock <- read_csv("/home/manny/Documents/githubproject/fxanalyst/prices.csv")
+
+# Final Data Set for Analysis and Visualization
+final_data_set <- clean_usa %>% 
+  filter(ticker %in% supported$ticker) %>% 
+  left_join(prices_all_stock, by = "ticker") %>% 
+  drop_na() %>% 
+  mutate(market_value = shares * close) %>% 
+  left_join(supported_tickers, by = c("ticker")) %>% 
+  select(ticker, name, rebate, fee, shares, close, volume, market_value, assetType) 
+```
+
+### Introduction + Data
+
+This is an example of an Rmarkdown document. This document is currently static but is meant to provide a members of the Equity Derivatives team a high level view of the current inventory and the rates that Ibroker has posted online publicly. This report can be configured to be emailed to anyone at specific times of the day as well is if it needs to be run adhoc. The data from ibrokers is updated every 15 minutes and could also be used as an in house data source to supplement other broker inventories we receive.  
+
+### Distribution of Fee's 
+
+Using the fee's(bps) posted by ibrkr a histogram is generated visualizing the distribution of fees being charged on the assets available to borrow.
+
+**How might a team member might use this information**
+
+This chart/data can be used with additional market intelligence to ask question such as:  
+  
+  + Is the GC rate I am being quoted fall in line with what Ibrokers is offering?
+  + When observed at different times of the week or day is the distribution shifting either way?
+  + If the distribution is shifting why is it the case? (Reach out to broker to provide color)
+
+### Expensive Borrows Inventory
+
+This table combines data from ibrkr and tiingo.com to display the most expensive borrows with different filters. 
+
+**How might a team member use this information?** 
+
+This table can be used with additional market intelligence to ask question such as:  
+
+  + Do I have any of this on stock hand to lend out?
+  + What is the market sentiment on these names right now? Can we expect this to change in the near future?
+  + Am I currently borrowing this stock and at what rate?
+  
+### Extend it!
+
+This data is ripe to be extended into a deeper and more through analysis by joining additional data fields like 
+
+  + News sentiment 
+  + Volatility
+  + Short Interest
+  + Current holdings
+  + Who holds it long? (Join 13F Filing data)
+
+The data could also be collected over a period of time to answer questions like 
+
+  + Which stocks are consistently in inventory and for how much?
+  + Do borrow rates predict price movement?
+  + Do borrow rates predict volatality?
+  
+
+```{r distribution of fees,echo=FALSE, message=FALSE}
+
+# What are the most expensive to borrow?
+# Lets look at the distribution of the fees
+final_data_set %>%
+  ggplot()+
+  geom_histogram(mapping = aes(x = fee))+
+  xlim(c(0,100))  +
+  ylim(c(0,350))+
+  facet_wrap( ~ assetType)+
+  labs(title = "Distribution of Fee's 0 to 350bps", 
+  subtitle = "Source: ibrkr.com", 
+       y = "count", x = "fee")+
+  theme_tq()
+
+# Most stocks are in the 0 to 25bps range to borrow
+# This is expected. If we start to see the the desn
+# We expect this to be the case - if we 
+
+```
+
+```{r expensive borrows, echo=FALSE, message=FALSE}
+
+all_expensive <- final_data_set %>% 
+  filter(fee > 50) %>% 
+  select(-rebate) %>% 
+  arrange(desc(fee)) %>% 
+  slice(1:20) %>% 
+  gt() %>% 
+  fmt_currency(columns = "market_value", 
+               currency = "USD", 
+               decimals = 0, 
+               suffixing = TRUE) %>% 
+  fmt_number(columns = c("shares", "volume"), 
+             decimals = 0)
+
+all_expensive %>% 
+   tab_header(
+    title = "Expensive Borrows Inventory",
+    subtitle = "Top 20 where fee > 50 "
+  )
+
+
+
+```
+
+
+
+
+```{r borrows in high supply, echo=FALSE, message=FALSE}
+
+# Which stocks are readily available at borrow rate above 25
+# We would want to know this to compare what we are currently being offered 
+large_market_value <- final_data_set %>% 
+  filter(market_value > 5000000, 
+         fee > 50) %>% 
+  select(-rebate) %>% 
+  gt() %>% 
+  fmt_currency(columns = "market_value", 
+               currency = "USD", 
+               decimals = 0, 
+               suffixing = TRUE) %>% 
+  fmt_number(columns = c("shares", "volume"), 
+             decimals = 0)
+
+large_market_value %>% 
+   tab_header(
+    title = "Expensive Borrow Inventory",
+    subtitle = "Mkt Val > 5M and fee > 50 "
+  )
+
+
+
+```
+
+
